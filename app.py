@@ -52,13 +52,25 @@ if page == "Analysis":
     sns.scatterplot(data=df, x="votes", y="rate", ax=ax2)
     st.pyplot(fig2)
 
-    # Average Rating by City
-    avg_rating = (
-        df.groupby("listed_in(city)")["rate"].mean().sort_values(ascending=False)
-    )
-    fig3, ax3 = plt.subplots(figsize=(8, 5))
-    avg_rating.plot(kind="bar", ax=ax3)
-    st.pyplot(fig3)
+    # --- Clean column names ---
+    df.columns = df.columns.str.strip()  # remove leading/trailing spaces
+
+    # --- Debug: check available columns ---
+    st.write("Available columns:", df.columns.tolist())
+
+    # --- Average Rating by City ---
+    if "listed_in(city)" in df.columns:
+        avg_rating = (
+            df.groupby("listed_in(city)")["rate"].mean().sort_values(ascending=False)
+        )
+        fig3, ax3 = plt.subplots(figsize=(8, 5))
+        avg_rating.plot(kind="bar", ax=ax3)
+        ax3.set_title("Average Rating by City")
+        ax3.set_ylabel("Average Rate")
+        ax3.set_xlabel("City")
+        st.pyplot(fig3)
+    else:
+        st.error("'listed_in(city)' column not found in dataset.")
 
     # Count Plot of Locations
     fig4, ax4 = plt.subplots(figsize=(16, 10))
