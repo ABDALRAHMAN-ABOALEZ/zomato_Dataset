@@ -1,92 +1,154 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
-from tensorflow.keras.models import load_model
+import tensorflow as tf
 
-# ------------------- Page Setup -------------------
-st.set_page_config(page_title="Zomato Restaurant Popularity", layout="wide")
-st.title("🍽️ Zomato Restaurant Popularity Predictor")
+st.set_page_config(page_title="Zomato Analysis & Prediction", layout="wide")
 
-# ------------------- Load Sampled Dataset -------------------
+
+# -------------------
+# Load Data & Models
+# -------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("zomato_sample.csv")
-    return df
+    return pd.read_csv("zomato_sample.csv")
 
-df = load_data()
 
-# ------------------- Load Models -------------------
 @st.cache_resource
 def load_models():
-    rf_model = joblib.load("random_forest_pipeline.pkl")
-    nn_model = load_model("nn_model.keras")
-    return rf_model, nn_model
+    model_ml = joblib.load("random_forest_pipeline.pkl")
+    model_nn = tf.keras.models.load_model("nn_model.keras")
+    return model_ml, model_nn
 
-rf_model, nn_model = load_models()
 
-# ------------------- Sidebar Navigation -------------------
-page = st.sidebar.selectbox("Choose Page", ["Analysis", "Prediction"])
+df = load_data()
+model_ml, model_nn = load_models()
 
-# ------------------- Analysis Page -------------------
+# -------------------
+# Sidebar Navigation
+# -------------------
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Analysis", "Prediction"])
+
+# -------------------
+# Analysis Page
+# -------------------
 if page == "Analysis":
-    st.header("📊 EDA & Key Findings")
+    st.title("📊 Exploratory Data Analysis")
 
-    st.subheader("Distribution of Ratings")
-    plt.figure(figsize=(10,5))
-    sns.histplot(df['rate'], bins=20, kde=True)
-    st.pyplot(plt)
-    plt.clf()
+    st.subheader("Dataset Preview")
+    st.dataframe(df.head())
 
-    st.subheader("Top Restaurant Types")
-    rest_counts = df['rest_type'].value_counts().head(20)
-    st.bar_chart(rest_counts)
+    # Distribution of Ratings
+    fig1, ax1 = plt.subplots()
+    sns.histplot(df["rate"], bins=20, kde=True, ax=ax1)
+    st.pyplot(fig1)
 
-    st.subheader("Key Insights")
-    st.markdown("""
-    - Casual Dining and Quick Bites dominate the dataset.  
-    - Restaurants accepting online orders tend to have higher ratings.  
-    - Popular cuisines: North Indian, Chinese, Italian.  
-    """)
+    # Votes vs Rating
+    fig2, ax2 = plt.subplots()
+    sns.scatterplot(data=df, x="votes", y="rate", ax=ax2)
+    st.pyplot(fig2)
 
-# ------------------- Prediction Page -------------------
-if page == "Prediction":
-    st.header("🤖 Predict Restaurant Popularity")
-    st.subheader("Enter Restaurant Details")
+    # Average Rating by City
+    avg_rating = (
+        df.groupby("listed_in(city)")["rate"].mean().sort_values(ascending=False)
+    )
+    fig3, ax3 = plt.subplots(figsize=(8, 5))
+    avg_rating.plot(kind="bar", ax=ax3)
+    st.pyplot(fig3)
 
-    # Input form
-    online_order = st.selectbox("Online Order", ["Yes", "No"])
-    book_table = st.selectbox("Book Table", ["Yes", "No"])
-    votes = st.number_input("Number of Votes", min_value=0, value=50)
-    location = st.text_input("Location", "Bangalore")
-    rest_type = st.text_input("Restaurant Type", "Casual Dining")
-    cuisines = st.text_input("Cuisines", "Italian")
-    cost = st.number_input("Cost for Two", min_value=0, value=500)
+    # Count Plot of Locations
+    fig4, ax4 = plt.subplots(figsize=(16, 10))
+    sns.countplot(
+        y="location", data=df, order=df["location"].value_counts().index, ax=ax4
+    )
+    st.pyplot(fig4)
 
-    if st.button("Predict"):
-        # Create dataframe
-        new_restaurant = pd.DataFrame([{
-            'online_order': online_order,
-            'book_table': book_table,
-            'votes': votes,
-            'location': location,
-            'rest_type': rest_type,
-            'cuisines': cuisines,
-            'cost': cost
-        }])
+    # Online Order
+    fig5, ax5 = plt.subplots()
+    sns.countplot(x="online_order", data=df, palette="inferno", ax=ax5)
+    st.pyplot(fig5)
 
-        # Random Forest prediction
-        rf_pred = rf_model.predict(new_restaurant)
-        rf_result = "Yes" if rf_pred[0] == 1 else "No"
+    # Book Table
+    fig6, ax6 = plt.subplots()
+    sns.countplot(x="book_table", data=df, palette="rainbow", ax=ax6)
+    st.pyplot(fig6)
 
-        # Neural Network prediction
-        preprocessor = rf_model.named_steps['preprocessor']
-        new_nn = preprocessor.transform(new_restaurant)
-        nn_pred = nn_model.predict(new_nn)
-        nn_result = "Yes" if int(nn_pred[0][0] > 0.5) else "No"
+    # Online Order vs Rate
+    fig7, ax7 = plt.subplots()
+    sns.boxplot(x="online_order", y="rate", data=df, ax=ax7)
+    st.pyplot(fig7)
 
-        # Display results
-        st.subheader("Predictions")
-        st.write(f"✅ Random Forest Prediction: **{rf_result}**")
-        st.write(f"✅ Neural Network Prediction: **{nn_result}**")
+    # Book Table vs Rate
+    fig8, ax8 = plt.subplots()
+    sns.boxplot(x="book_table", y="rate", data=df, ax=ax8)
+    st.pyplot(fig8)
+
+    # Online Order by Location
+    df_online = (
+        df.groupby(["location", "online_order"])["name"].count().unstack(fill_value=0)
+    )
+    fig9, ax9 = plt.subplots(figsize=(15, 8))
+    df_online.plot(kind="bar", ax=ax9)
+    st.pyplot(fig9)
+
+    # Book Table by Location
+    df_book = (
+        df.groupby(["location", "book_table"])["name"].count().unstack(fill_value=0)
+    )
+    fig10, ax10 = plt.subplots(figsize=(15, 8))
+    df_book.plot(kind="bar", ax=ax10)
+    st.pyplot(fig10)
+
+    # Type vs Rate
+    fig11, ax11 = plt.subplots(figsize=(14, 8))
+    sns.boxplot(x="Type", y="rate", data=df, palette="inferno", ax=ax11)
+    st.pyplot(fig11)
+
+    # Types of Restaurants by Location
+    df_type = df.groupby(["location", "Type"])["name"].count().unstack(fill_value=0)
+    fig12, ax12 = plt.subplots(figsize=(36, 8))
+    df_type.plot(kind="bar", ax=ax12)
+    st.pyplot(fig12)
+
+    # Votes by Location
+    votes_loc = df.groupby("location")["votes"].sum().sort_values(ascending=False)
+    fig13, ax13 = plt.subplots(figsize=(15, 8))
+    sns.barplot(x=votes_loc.index, y=votes_loc.values, ax=ax13)
+    ax13.set_xticklabels(ax13.get_xticklabels(), rotation=90)
+    st.pyplot(fig13)
+
+    # Top Cuisines
+    cuisines_votes = (
+        df.groupby("cuisines")["votes"].sum().sort_values(ascending=False).iloc[1:]
+    )
+    fig14, ax14 = plt.subplots(figsize=(15, 8))
+    sns.barplot(x=cuisines_votes.index, y=cuisines_votes.values, ax=ax14)
+    ax14.set_xticklabels(ax14.get_xticklabels(), rotation=90)
+    st.pyplot(fig14)
+
+# -------------------
+# Prediction Page
+# -------------------
+elif page == "Prediction":
+    st.title("🔮 Restaurant Rating Prediction")
+
+    with st.form("prediction_form"):
+        votes = st.number_input("Number of Votes", min_value=0)
+        rate = st.number_input("Current Rating", min_value=0.0, max_value=5.0, step=0.1)
+        city = st.text_input("City")
+        submit = st.form_submit_button("Predict")
+
+    if submit:
+        input_df = pd.DataFrame(
+            [[votes, rate, city]], columns=["votes", "rate", "listed_in(city)"]
+        )
+
+        ml_pred = model_ml.predict(input_df)[0]
+        nn_pred = model_nn.predict(input_df)[0]
+
+        st.success(f"ML Model Prediction: {ml_pred}")
+        st.success(f"Neural Network Prediction: {nn_pred}")
